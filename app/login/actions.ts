@@ -11,9 +11,13 @@ export async function signIn(_: LoginState, formData: FormData): Promise<LoginSt
 
   if (!email || !password) return { error: 'Enter your email and password.' }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) return { error: 'We couldn’t sign you in with those credentials.' }
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: 'We couldn’t sign you in with those credentials.' }
+  } catch {
+    return { error: 'Authentication is not configured. Add the Supabase variables in Vercel.' }
+  }
 
   redirect('/')
 }

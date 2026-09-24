@@ -4,25 +4,31 @@ import { createClient } from '@/lib/supabase/server'
 import type { AppRole, OrganizationMembership } from '@/types/auth'
 
 export const getCurrentMembership = cache(async (): Promise<OrganizationMembership | null> => {
-  const supabase = await createClient()
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
-  const userId = claimsData?.claims?.sub
+  try {
+    const supabase = await createClient()
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+    const userId = claimsData?.claims?.sub
 
-  if (claimsError || !userId) return null
+    if (claimsError || !userId) return null
 
-  const [{ data: membership, error: membershipError }, { data: profile }] = await Promise.all([
-    supabase.from('organization_members').select('organization_id, role, organizations(name)').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle(),
-    supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
-  ])
+    const [{ data: membership, error: membershipError }, { data: profile }] = await Promise.all([
+      supabase.from('organization_members').select('organization_id, role, organizations(name)').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle(),
+      supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
+    ])
 
-  const organization = Array.isArray(membership?.organizations) ? membership.organizations[0] : membership?.organizations
-  if (membershipError || !membership || !organization) return null
+    const organization = Array.isArray(membership?.organizations) ? membership.organizations[0] : membership?.organizations
+    if (membershipError || !membership || !organization) return null
 
-  return {
-    organizationId: membership.organization_id,
-    organizationName: organization.name,
-    role: membership.role as AppRole,
-    user: { id: userId, email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : null, fullName: profile?.full_name ?? null },
+    return {
+      organizationId: membership.organization_id,
+      organizationName: organization.name,
+      role: membership.role as AppRole,
+      user: { id: userId, email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : null, fullName: profile?.full_name ?? null },
+    }
+  } catch {
+    // Missing Vercel environment variables must not turn the public route into
+    // a generic Internal Server Error. The user can configure them in Vercel.
+    return null
   }
 })
 
