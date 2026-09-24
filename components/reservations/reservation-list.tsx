@@ -1,0 +1,23 @@
+'use client'
+
+import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import type { Reservation, ReservationStatus } from '@/types/reservation'
+import { EmptyState } from '@/components/shared/data-state'
+
+const labels: Record<ReservationStatus, string> = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', reserved: 'Reserved', checked_out: 'Checked out', returned: 'Returned', cancelled: 'Cancelled', overdue: 'Overdue', no_show: 'No show' }
+function formatDate(date: string) { return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date)) }
+function dateKey(value: string) { return new Date(value).toLocaleDateString('en-CA') }
+
+export function ReservationList({ reservations }: { reservations: Reservation[] }) {
+  const [query, setQuery] = useState(''); const [date, setDate] = useState(''); const [status, setStatus] = useState<'all' | ReservationStatus>('all'); const [resource, setResource] = useState('all'); const [requester, setRequester] = useState('all')
+  const resources = useMemo(() => [...new Set(reservations.map(reservation => reservation.resourceName))].sort(), [reservations]); const requesters = useMemo(() => [...new Set(reservations.map(reservation => reservation.requestedByName ?? reservation.requestedBy))].sort(), [reservations])
+  const filtered = useMemo(() => reservations.filter(reservation => { const effectiveStatus = reservation.isOverdue ? 'overdue' : reservation.status; const requesterName = reservation.requestedByName ?? reservation.requestedBy; const matchesQuery = (reservation.resourceName + ' ' + requesterName + ' ' + reservation.purpose).toLowerCase().includes(query.trim().toLowerCase()); return matchesQuery && (!date || dateKey(reservation.startsAt) === date) && (status === 'all' || effectiveStatus === status) && (resource === 'all' || reservation.resourceName === resource) && (requester === 'all' || requesterName === requester) }), [reservations, query, date, status, resource, requester])
+  const clearFilters = () => { setQuery(''); setDate(''); setStatus('all'); setResource('all'); setRequester('all') }
+
+  return <>
+    <div className="resource-toolbar reservation-filters"><label className="sr-only" htmlFor="reservation-search">Search reservations</label><input id="reservation-search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search reservations..." /><label className="sr-only" htmlFor="reservation-date">Filter by date</label><input id="reservation-date" type="date" value={date} onChange={event => setDate(event.target.value)} /><label className="sr-only" htmlFor="reservation-status">Filter by status</label><select id="reservation-status" value={status} onChange={event => setStatus(event.target.value as 'all' | ReservationStatus)}><option value="all">All statuses</option>{Object.entries(labels).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select><label className="sr-only" htmlFor="reservation-resource">Filter by resource</label><select id="reservation-resource" value={resource} onChange={event => setResource(event.target.value)}><option value="all">All resources</option>{resources.map(value => <option key={value} value={value}>{value}</option>)}</select><label className="sr-only" htmlFor="reservation-requester">Filter by requester</label><select id="reservation-requester" value={requester} onChange={event => setRequester(event.target.value)}><option value="all">All requesters</option>{requesters.map(value => <option key={value} value={value}>{value}</option>)}</select></div>
+    <p className="sr-only" aria-live="polite">{filtered.length} reservation{filtered.length === 1 ? '' : 's'} shown</p>
+    {filtered.length === 0 ? <EmptyState title="No reservations found" description="Try a different search or filter." action={<button type="button" className="text-button" onClick={clearFilters}>Clear filters</button>} /> : <div className="reservation-list">{filtered.map(reservation => { const reservationStatus = reservation.isOverdue ? 'overdue' : reservation.status; const label = reservation.isOverdue ? 'Overdue' : labels[reservation.status]; return <Link className="reservation-row" key={reservation.id} href={'/reservations/' + reservation.id}><div><strong>{reservation.resourceName}</strong><span>{reservation.requestedByName ?? 'Member'} · {reservation.purpose}</span></div><div><time>{formatDate(reservation.startsAt)}</time><span>to {formatDate(reservation.endsAt)}</span></div><div><span role="status" className={'reservation-status ' + reservationStatus}>{label}</span><small>{reservation.quantity} unit{reservation.quantity === 1 ? '' : 's'}</small></div></Link> })}</div>}
+  </>
+}
